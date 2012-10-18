@@ -1,11 +1,14 @@
 #!/bin/bash
-
+exit
 ################################################################################
 # Step #0: Data repository models
 ################################################################################
 
+# Variable to configure
 USER="aadlani"
 EMAIL="anouar@adlani.com"
+BACKUP_HOME="/Users/$USER/backups"
+BACKUP_SOURCE_DIR="/Users/$USER/Documents"
 
 # Dates
 NOW=$(date +%Y%m%d%H%M)               #YYYYMMDDHHMM
@@ -16,7 +19,6 @@ THISMONTH=${TODAY:0:6}                #YYYYMM
 THISYEAR=${TODAY:0:4}                 #YYYY
 
 # Backup Configuration
-BACKUP_HOME="/backups"
 LOGFILE="$BACKUP_HOME/backups.log"
 CURRENT_LINK="$BACKUP_HOME/current"
 SNAPSHOT_DIR="$BACKUP_HOME/snapshots"
@@ -24,9 +26,6 @@ ARCHIVES_DIR="$BACKUP_HOME/archives"
 DAILY_ARCHIVES_DIR="$ARCHIVES_DIR/daily"
 WEEKLY_ARCHIVES_DIR="$ARCHIVES_DIR/weekly"
 MONTHLY_ARCHIVES_DIR="$ARCHIVES_DIR/monthly"
-
-# Folder to backup
-BACKUP_SOURCE_DIR="/Users/$USER"
 
 start_time=`date +%s`
 printf "[%12d] Backup started\n" $NOW >> $LOGFILE
