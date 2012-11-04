@@ -1,0 +1,452 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+
+    <link rel="stylesheet" type="text/css" href="stylesheets/stylesheet.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/pygment_trac.css" media="screen" />
+    <link rel="stylesheet" type="text/css" href="stylesheets/print.css" media="print" />
+
+    <title>Backup-manager by aadlani</title>
+  </head>
+
+  <body>
+
+    <header>
+      <div class="container">
+        <h1>Backup-manager</h1>
+        <h2>Pure Unix personal backup manager that I use on OSX</h2>
+
+        <section id="downloads">
+          <a href="https://github.com/aadlani/backup-manager/zipball/master" class="btn">Download as .zip</a>
+          <a href="https://github.com/aadlani/backup-manager/tarball/master" class="btn">Download as .tar.gz</a>
+          <a href="https://github.com/aadlani/backup-manager" class="btn btn-github"><span class="icon"></span>View on GitHub</a>
+        </section>
+      </div>
+    </header>
+
+    <div class="container">
+      <section id="main_content">
+        <h1>Backup Manager: How to backup with RSYNC, TAR, CRON and GPG</h1>
+
+<p>the aim of this post is to describe how I have created my modest personal backup that I use during my working days. I will not expend myself on the importance of Backing up your files, but since it's not Rocket Science, I will spend more time describing the commands and tools I use with their related options since there are some unix tricks that are good to know.</p>
+
+<p>created_on: 01/12/2011 22:15</p>
+
+<h2>Context</h2>
+
+<p>I really like the principle of the Apple Time Capsule or the Dropbox,
+that I use on my personal computers, but these solutions are not
+suitable, at least in my case, for a corporate use. Time capsule is not
+really scalable when you have too many connected machines and concerning
+DropBox I'm not comfortable to store confidential documents in a shared
+drive handle by a third company. That's why sometimes it's easier to use
+what you have usually at your disposal, for my part that is to say a Unix
+Operating System and all the tools that come with it.</p>
+
+<p>As described in the title, I'm using exclusively Unix tools like RSYNC
+for the remote copy, and CRON for the tasks scheduling and some other
+Unix sugars to have this working all together. I have set a predefined
+folder structure where I'm storing my backed up files, and have a file
+archiver with a rotation system that compresses and groups snapshots
+together.  </p>
+
+<p>At the time I'm writing this article, I know that there are plenty
+OpenSource softwares that provide nearly the same features that I'm
+presenting here, but I like to do this kind of scripting task to train
+myself. I love programming, I love practicing and for me the best way to
+improve your skills is by practicing again and again and again...</p>
+
+<p>So to sum up, the objective of this article is to create step by step a
+simple but efficient backup solution with recognized standard tools to
+provide at least the following features:</p>
+
+<ul>
+<li>
+<strong>Regular</strong>       : Scheduled at a regular frequency</li>
+<li>
+<strong>Unobstructive</strong> : ran as a background job and not require any manual intervention</li>
+<li>
+<strong>Incremental</strong>   : save only the  increments of change between points in time</li>
+<li>
+<strong>Snapshots</strong>     : Several instaneous copy of the concerned folder</li>
+<li>
+<strong>Fast</strong>          : Need to be executed rapidly without being blocker</li>
+<li>
+<strong>Secured</strong>       : To have the archives encrypted to be stored on external systems</li>
+<li>
+<strong>Consistent</strong>    : Need to preserve files, links, rights and dates</li>
+</ul><p>In the next 5 sections I'll try as far as I can to go about many details of the tools and
+technics we will be using.</p>
+
+<ol>
+<li>Data repository model</li>
+<li>Retrieve files to create snapshots with RSYNC</li>
+<li>Create encrypted and compressed archives</li>
+<li>Schedule the backup tasks</li>
+<li>final script and cron tab</li>
+</ol><h2>Data repository models</h2>
+
+<p>I'll start this section by describing the Folder structure that
+represents my repository model, which aimed to be an incremental. </p>
+
+<h3>The layout</h3>
+
+<p>The folder structure that I'm using is composed by a main root folder
+named <code>backup</code> here, within which I set 2 folders (<code>archives</code> and
+<code>snapshots</code>) and a symbolic link named <code>current</code>.  I will explain the
+responsibilities of all of them afterword, but first here is a small
+representation of it:</p>
+
+<pre><code>backups
+|-- archives
+|   |-- 20111121.tar.gz.gpg
+|   `-- 20111122.tar.gz.gpg
+|-- current -&gt; /tmp/backups/snapshots/201111232314
+`-- snapshots
+    |-- 201111232305
+    |-- 201111232310
+    `-- 201111232314
+</code></pre>
+
+<p>To keep things simple and to not bother you with understandable paths,
+I'll handle this layout by defining the variables that I'll use in all
+my future commands.</p>
+
+<div class="highlight"><pre><span class="nv">NOW</span><span class="o">=</span><span class="k">$(</span>date +%Y%m%d%H%M<span class="k">)</span>
+<span class="nv">YESTERDAY</span><span class="o">=</span><span class="k">$(</span>date -v -1d +%Y%m%d<span class="k">)</span>
+
+<span class="c"># Backup Configuration</span>
+<span class="nv">BACKUP_HOME</span><span class="o">=</span><span class="s2">"/tmp/backups"</span>
+<span class="nv">CURRENT_LINK</span><span class="o">=</span><span class="s2">"$BACKUP_HOME/current"</span>
+<span class="nv">SNAPSHOT_DIR</span><span class="o">=</span><span class="s2">"$BACKUP_HOME/snapshots"</span>
+<span class="nv">ARCHIVES_DIR</span><span class="o">=</span><span class="s2">"$BACKUP_HOME/archives"</span>
+</pre></div>
+
+<h4>The Snapshots folder</h4>
+
+<p>The definition of Snapshot is a copy of your files at a given instant,
+think of it as a Photo of your files by an instant camera. This kind of
+backup are useful when you have several snapshots for the current day, to be able to recover easily a single file or folder from few hours earlier. </p>
+
+<p>We will need to take several snapshots a day, let's say one hourly
+during the working day, which is not so huge since it will not exceed a dozen per day. For practical reasons, that you could figure out, they
+are not compressed neither archived in order to recover a file easily. </p>
+
+<p>All the snapshots will be stored under
+<code>backups/snapshots/YYYYMMDDHHMM/</code>.  And to keep snapshots fast and
+efficient in term of disk usage, I will use hard links between
+snapshots. This technic is available in RSYNC and will be detailed
+below.</p>
+
+<h4>Archives</h4>
+
+<p>If we want to preserve your disc space, we should think about archiving old backups. No need to keep definitely all the snapshots folders since you rarely need to browse files older than one or two days. That's why we will create an archive everyday with the content of the previous day. </p>
+
+<p>All the previous snapshots will be gathered in an weekly, monthly and yearly encrypted backups archives. To do so we will use <code>tar</code>, compress with gunzip and encrypt with GnuPG.</p>
+
+<h4>Current</h4>
+
+<p><code>current</code> is a symbolic link pointing to the last snapshot folder. This reference will be used in the future command lines, for example to request rsync to hard link to it.</p>
+
+<h2>Retrieve files to create snapshots with RSYNC.</h2>
+
+<h3>Rsync</h3>
+
+<p>Rsync is an incremental file transfer software which synchronizes files
+and directory from a source to a destination by sending only the delta
+between them. Rsync is a good fit for our requirements, and has a lot of
+options available that will let us tune it easily to our needs.</p>
+
+<p>Here is the command we will use, with its options:</p>
+
+<div class="highlight"><pre>rsync --hard-links --archive --compress --link-dest<span class="o">=</span><span class="nv">$CURRENT_LINK</span> <span class="nv">$BACKUP_SOURCE_DIR</span> <span class="nv">$SNAPSHOT_DIR</span>/<span class="nv">$NOW</span>
+</pre></div>
+
+<p>The options are self descriptives, but let's detail them to be sure to
+understand their roles:</p>
+
+<ul>
+<li>
+<code>--compress</code> or <code>-z</code>: means that the compression will be used to reduce
+the size of data sent.</li>
+<li>
+<code>--hard-links</code> and <code>--link-dest=DIR</code>: hard link to files in DIR when
+unchanged. I use this option to optimize the disk space since only
+files updated or newly created will consume disk space. By the way, it also
+addresses the speed issue. I use the path to the <code>current</code> symlink to
+make sure that the hard link are executed on the most recent update.</li>
+<li>
+<code>--archive</code> or <code>-a</code>: is a shortcut for several options that acts like
+if you were creating a tar archive using the "tar pipe" technic, that is to
+say:
+
+<ul>
+<li>recurse into directories</li>
+<li>copy symlinks as symlinks</li>
+<li>preserve permissions, times, group, owner and device</li>
+</ul>
+</li>
+</ul><p><code>du</code> displays disk usage statistics, if you want to confirm hard links are working fine, you can execute the <code>du -sch</code> on all the snapshots like this:</p>
+
+<pre><code>du -sch backups/snapshots/*
+
+143M backups/snapshots/201112010900
+ 16K backups/snapshots/201112010930
+ 16K backups/snapshots/201112011000
+ 35M backups/snapshots/201112011030
+ ...
+178M total
+</code></pre>
+
+<ul>
+<li>
+<code>-s</code> Displays an entry for each specified file.</li>
+<li>
+<code>-c</code> Displays a grand total.</li>
+<li>
+<code>-h</code> Human readable output.</li>
+</ul><p><strong>Warning</strong>: I discovered it's not working with SAMBA NTFS drives because this filesystem does not understand hard links and it simply duplicates the files.</p>
+
+<p>References:</p>
+
+<ul>
+<li><a href="http://blog.extracheese.org/2010/05/the-tar-pipe.html">The tar-pipe</a></li>
+</ul><h3>Rotation management</h3>
+
+<h4>Chained Commands</h4>
+
+<p>Each time a snapshot backup has been successfully finished, we relink the symbolic link <code>current</code> to this one. For this, I'm using the Bash chained commands with an AND conditional execution.</p>
+
+<div class="highlight"><pre>command1 <span class="o">&amp;&amp;</span> command2
+</pre></div>
+
+<p><code>command2</code> is executed if, and only if, <code>command1</code> succeeds</p>
+
+<div class="highlight"><pre>rsync --hard-links --archive --compress --link-dest<span class="o">=</span><span class="nv">$CURRENT_LINK</span> <span class="nv">$BACKUP_SOURCE_DIR</span> <span class="nv">$SNAPSHOT_DIR</span>/<span class="nv">$NOW</span> <span class="o">&amp;&amp;</span> ln -snf <span class="k">$(</span>ls -1d <span class="nv">$SNAPSHOT_DIR</span>/* | tail -n1<span class="k">)</span> <span class="nv">$CURRENT_LINK</span>
+</pre></div>
+
+<h4>Symbolic Link</h4>
+
+<p>Here is the way we will create the symbolic link:</p>
+
+<div class="highlight"><pre>ln -snf <span class="k">$(</span>ls -d1 snapshots | tail -n1<span class="k">)</span> current
+</pre></div>
+
+<p>And here are the details of the different options used:</p>
+
+<ul>
+<li>
+<code>-s</code> obviously, to specify that is a symbolic link</li>
+<li>
+<code>-f</code> to force the override of the existing link</li>
+<li>
+<code>-n</code> do not follow the target if it's already a symlink.</li>
+</ul><p>Be aware that without the <code>-n</code> option, the <code>ln</code> command will act as if you were requesting it to link the last snapshot inside of the previous one, like this way:</p>
+
+<pre><code>backups
+`-- current -&gt; snapshots/201111201646
+  |-- 201111220901 -&gt; snapshots/201111220901
+  |-- Downloads 
+  ...
+</code></pre>
+
+<h4>Subshell Command substitution</h4>
+
+<p>To find out the last snapshot to link to the <code>current</code> folder, I
+list the folders in the <code>snapshots</code> directory, formatted as one entry per
+line, that I pipe with <code>tail</code> to get the last entry.</p>
+
+<div class="highlight"><pre>ls -d1 snapshots | tail -n1
+</pre></div>
+
+<p>Since I want to use the result of this command directly in my <code>ln</code>
+command, I'm using the Subshell Command Substitution offered by Bash.</p>
+
+<div class="highlight"><pre><span class="k">$(</span> &lt;COMMANDS&gt; <span class="k">)</span>
+</pre></div>
+
+<p>The command substitution returns the <code>stdout</code> data after running the
+command in a subshell. Everything inside the parentheses is executed in
+a separate instance of bash.</p>
+
+<h2>Create encrypted and compressed archives</h2>
+
+<p>To preserve disk space and to keep the backup folder manageable, we need
+to find all the snapshots from the previous day, and create a compressed
+timestamped archive. Then we will delete them once the archive successfully created.</p>
+
+<h3>Compute dates</h3>
+
+<p>All this script long, we will be using dates several time for the
+file names timestamps or to select eligible files for the rotations.
+To keep the date coherent in the whole script, this is preferable to compute
+them once at the beginning of the script to prevent sides effects.</p>
+
+<p>Here is how we are retrieving the current and past's dates:</p>
+
+<div class="highlight"><pre><span class="nv">NOW</span><span class="o">=</span><span class="k">$(</span>date +%Y%m%d%H%M<span class="k">)</span>
+<span class="nv">YESTERDAY</span><span class="o">=</span><span class="k">$(</span>date -v -1d +%Y%m%d<span class="k">)</span>
+</pre></div>
+
+<p>Date options</p>
+
+<ul>
+<li>
+<code>-v-1d</code> return the value of the current date -1 day</li>
+<li>
+<code>+%Y%m%d</code> format the output with the YYYYMMDD format</li>
+</ul><h3>Create the archive</h3>
+
+<p>Now that we have the yesterday's date, let's create the compressed archive
+with all the snapshots folders of this day if they exist, and remove them
+in case of success, using a chained command.</p>
+
+<p>We first test if the snapshots folder contains some subfolders matching
+the yesterday timestamp, by listing only folders, redirecting the errors
+to /dev/null and counting lines of the output.</p>
+
+<div class="highlight"><pre><span class="k">if</span> <span class="o">[</span> <span class="k">$(</span>ls -d <span class="nv">$SNAPSHOT_DIR</span>/<span class="nv">$YESTERDAY</span>* 2&gt; /dev/null | wc -l<span class="k">)</span> !<span class="o">=</span> <span class="s2">"0"</span> <span class="o">]</span>
+<span class="k">then</span>
+<span class="k">  </span>tar -czf <span class="nv">$ARCHIVES_DIR</span>/<span class="nv">$YESTERDAY</span>.tar.gz <span class="nv">$SNAPSHOT_DIR</span>/<span class="nv">$YESTERDAY</span>* <span class="o">&amp;&amp;</span> rm -rf <span class="nv">$SNAPSHOT_DIR</span>/<span class="nv">$YESTERDAY</span>*
+<span class="k">fi</span>
+</pre></div>
+
+<p>Tar options:</p>
+
+<ul>
+<li>
+<code>-c</code> create an archive</li>
+<li>
+<code>-z</code> compress the archive witt gunzip</li>
+<li>
+<code>-f</code> force the creation of the archive </li>
+</ul><h3>Encrypt the archives with GPG</h3>
+
+<p>The best backup files are the one you store far from the source file,
+which means some security risks. If you store your backups on shared drive or
+simply if you have confidential information, you should think about
+encrypt them.</p>
+
+<p>When we start talking about encryption on Unix, the tool that comes first in mind is GnuPG, a complete OpenPGP implementation. It's simple and effective and is not limited to emails.</p>
+
+<p>I'll not describe how to install, setup and generate keys since there
+are plenty sites doing it the right way. I will link some of them in
+the references of this section.</p>
+
+<p>In my case, I encrypt the archive with the following command:</p>
+
+<pre><code>gpg -r anouar@adlani.com --encrypt-files $ARCHIVES_DIR/$YESTERDAY.tar.gz
+</code></pre>
+
+<p>Which means: encrypt the archive to be decrypted only by the public key of
+<a href="mailto:anouar@adlani.com">anouar@adlani.com</a>.</p>
+
+<p>The GPG encryptions options:</p>
+
+<ul>
+<li>
+<code>-r</code> the recipient name or email used to retrieve the public key</li>
+<li>
+<code>--encrypt-files</code> encrypt the </li>
+</ul><p>When you will need to decrypt the archive, the only thing you have to do is call the following command.</p>
+
+<pre><code>gpg --decrypt-files $ARCHIVES_DIR/$YESTERDAY.tar.gz.gpg
+</code></pre>
+
+<p>During the decryption process you will be asked to enter your passphrase:</p>
+
+<pre><code>You need a passphrase to unlock the secret key for user:
+" Anouar ADLANI (aadlani) &lt;anouar@adlani.com&gt; "
+2048 bits RSA key, ID 840212D2, created 2011-11-23 (main key ID 540DC0B8)
+
+Enter passphrase:
+
+gpg: encrypted with 2048-bits RSA key, ID 840212D2, created 2011-11-23
+      " Anouar ADLANI (aadlani) &lt;anouar@adlani.com&gt; "
+</code></pre>
+
+<p>The GPG decryption options:</p>
+
+<ul>
+<li>
+<code>--decrypt-files</code> decrypts all files passed in parameter</li>
+</ul><p>References:</p>
+
+<ul>
+<li>GPG: <a href="http://www.gnupg.org/">The GNU Privacy Guard</a>
+</li>
+<li>GPGTools: <a href="http://www.gpgtools.org/">Open source initiative to bring OpenPGP to Apple OS
+X</a>
+</li>
+<li>PGP Global Directory: <a href="http://keyserver.pgp.com/vkd/GetWelcomeScreen.event">free service designed to make it easier to find
+and trust PGP
+keys</a> </li>
+<li>MIT Key Server: <a href="http://pgp.mit.edu/">MIT PGP Public Key Server</a>
+</li>
+</ul><h2>Schedule the backup tasks</h2>
+
+<p>Here we are, our script started to be quite complete, but we need now to
+execute the backup task regularly, and for that job we will use the
+CRON tool, with our user's crontab.</p>
+
+<h3>Cron</h3>
+
+<p>Visualize and edit your user crontab:</p>
+
+<div class="highlight"><pre>crontab -l      <span class="c"># List the actual crontab tasks</span>
+crontab -e      <span class="c"># Edit the crontab</span>
+</pre></div>
+
+<p>Crontab options:</p>
+
+<ul>
+<li>
+<code>-l</code> display the CRONTAB of the current user</li>
+<li>
+<code>-e</code> edit the CRONTAB in your <code>$EDITOR</code>
+</li>
+</ul><p>A crontab task has five fields for specifying day, date and time
+followed by the command to be run at that interval.</p>
+
+<div class="highlight"><pre>*  *  *  *  *       <span class="nb">command </span>to be executed
+-  -  -  -  -
+|  |  |  |  +-----  day of week   <span class="o">(</span>0 - 6<span class="o">)</span> <span class="o">(</span><span class="nv">Sunday</span><span class="o">=</span>0<span class="o">)</span>
+|  |  |  +--------  month         <span class="o">(</span>1 - 12<span class="o">)</span>
+|  |  +-----------  day of month  <span class="o">(</span>1 - 31<span class="o">)</span>
+|  +--------------  hour          <span class="o">(</span>0 - 23<span class="o">)</span>
++-----------------  min           <span class="o">(</span>0 - 59<span class="o">)</span>
+</pre></div>
+
+<p>To set our task to be executed every 30 minutes from 8am to 6pm during
+the workdays, that leads to:</p>
+
+<div class="highlight"><pre>*/30 8-18 * * 1-5 ~/bin/backup/backup.sh
+
+</pre></div>
+
+<ul>
+<li>
+<strong>*/30</strong> : "Every 30 minutes"</li>
+<li>
+<strong>8-18</strong> : "From 8 to 6"</li>
+<li>
+<strong>1-5</strong> : "Workdays"</li>
+</ul><p>If you are not comfortable with the CRONTAB syntax, I found some times
+ago a website which could help you to create your tasks visually, named CORNTAB that you will find in the references.</p>
+
+<ul>
+<li>Introduction: <a href="http://www.unixgeeks.org/security/newbie/unix/cron-1.html">Newbie Introduction to
+cron</a>
+</li>
+<li>CornTab: <a href="http://www.corntab.com/pages/crontab-gui">A visual crontab
+utility</a>
+</li>
+</ul>
+      </section>
+    </div>
+
+    
+  </body>
+</html>
