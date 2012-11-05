@@ -84,7 +84,7 @@ do
   # Step #4.1: Keep weekly backups for previous month
   if [[ $encryptedArchive =~ ^$PREVIOUSMONTH ]]; then
     archiveDay=${encryptedArchive:6:2}
-    weekNum=$(($archiveDay/7)) 
+    weekNum=$(((10#$archiveDay)/7))
     mv $DAILY_ARCHIVES_DIR/$encryptedArchive $WEEKLY_ARCHIVES_DIR/$PREVIOUSMONTH.WK_$weekNum.tar.gz.gpg \
       && printf "\t- Moved %s to %s\n" $DAILY_ARCHIVES_DIR/$encryptedArchive $WEEKLY_ARCHIVES_DIR/$PREVIOUSMONTH.WK_$weekNum.tar.gz.gpg >> $LOGFILE
   fi
