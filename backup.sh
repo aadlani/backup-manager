@@ -1,5 +1,4 @@
 #!/bin/bash
-exit
 ################################################################################
 # Step #0: Data repository models
 ################################################################################
@@ -47,7 +46,7 @@ rsync -azH --link-dest=$CURRENT_LINK  $BACKUP_SOURCE_DIR $SNAPSHOT_DIR/$NOW \
 ################################################################################
 
 # Go Through all the snapshots to find those eligible for backup
-find $SNAPSHOT_DIR -type d -mindepth 1 -maxdepth 1 -exec basename {} \; | \
+find $SNAPSHOT_DIR -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | \
   while read fileName
   do
     snapshotGroup=${fileName:0:8}   # YYYYMMDD
@@ -97,7 +96,7 @@ do
 done 
 
 # Step #4.3: Keep monthly backups for older backups
-find -E $WEEKLY_ARCHIVES_DIR -type f -mindepth 1 -maxdepth 1 -regex '.*/[0-9]{6}\.WK_[1-4]\.tar\.gz\.gpg$' -exec basename {} \; | \
+find -E $WEEKLY_ARCHIVES_DIR -mindepth 1 -maxdepth 1 -type f -regex '.*/[0-9]{6}\.WK_[1-4]\.tar\.gz\.gpg$' -exec basename {} \; | \
 while read encryptedArchive
 do
   archiveMonth=${encryptedArchive:0:6}
