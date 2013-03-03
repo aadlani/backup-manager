@@ -67,7 +67,7 @@ find $SNAPSHOT_DIR -type d -mindepth 1 -maxdepth 1 -exec basename {} \; | \
 # Step 3.1: If there are archives not encrypted, encrypt them and delete the archive
 if [ $(ls -d $DAILY_ARCHIVES_DIR/*.tar.gz 2> /dev/null | wc -l) != "0" ]
 then
-  /usr/local/bin/gpg -r $EMAIL --encrypt-files $DAILY_ARCHIVES_DIR/*.tar.gz \
+  gpg -r $EMAIL --encrypt-files $DAILY_ARCHIVES_DIR/*.tar.gz \
     && rm -rf $DAILY_ARCHIVES_DIR/*.tar.gz \
     && printf "\t- Encrypted archive in %s and removed the unencrypted version\n" $DAILY_ARCHIVES_DIR  
 fi
