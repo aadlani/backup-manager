@@ -14,7 +14,7 @@ BACKUP_SOURCE_DIR="/Users/$USER/Documents"
 NOW=$(date +%Y%m%d%H%M)               #YYYYMMDDHHMM
 YESTERDAY=$(date -v -1d +%Y%m%d)      #YYYYMMDD
 PREVIOUSMONTH=$(date -v -1m +%Y%m)    #YYYYMM
-TODAY=${TODAY:0:8}                    #YYYYMMDD
+TODAY=${NOW:0:8}                      #YYYYMMDD
 THISMONTH=${TODAY:0:6}                #YYYYMM
 THISYEAR=${TODAY:0:4}                 #YYYY
 
