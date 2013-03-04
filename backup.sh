@@ -1,4 +1,13 @@
 #!/bin/bash
+
+# Check the command dependency
+CMDS="date rsync find gpg tar"
+for i in $CMDS
+do
+  command -v $i >/dev/null && continue || { echo "$i command not found."; exit 1; }
+done
+
+
 ################################################################################
 # Step #0: Data repository models
 ################################################################################
@@ -27,11 +36,11 @@ WEEKLY_ARCHIVES_DIR="$ARCHIVES_DIR/weekly"
 MONTHLY_ARCHIVES_DIR="$ARCHIVES_DIR/monthly"
 
 start_time=`date +%s`
-printf "[%12d] Backup started\n" $NOW >> $LOGFILE
 
 # Init the folder structure
 mkdir -p $SNAPSHOT_DIR  $DAILY_ARCHIVES_DIR $WEEKLY_ARCHIVES_DIR $MONTHLY_ARCHIVES_DIR &> /dev/null
 touch $LOGFILE
+printf "[%12d] Backup started\n" $NOW >> $LOGFILE
 
 ################################################################################
 # Step #1: Retreive files to create snapshots with RSYNC.
