@@ -235,6 +235,7 @@ run_test "second snapshot hard-links unchanged files"
 first_snap="$(ls -1d "$E2E_BACKUP/snapshots"/* | tail -n1)"
 today="$(date +%Y%m%d)"
 mv "$first_snap" "$E2E_BACKUP/snapshots/${today}0001"
+ln -snf "$E2E_BACKUP/snapshots/${today}0001" "$E2E_BACKUP/current"
 (HOME="$E2E_HOME" sh "$PROJECT_DIR/backup.sh") >/dev/null 2>&1
 
 snaps="$(ls -1d "$E2E_BACKUP/snapshots"/* | tail -n2)"

@@ -109,7 +109,6 @@ fi
 # --------------------------------------------------------------------------- #
 
 NOW="$(date +%Y%m%d%H%M)"           # YYYYMMDDHHMM
-TODAY="${NOW%????}"                   # YYYYMMDD  (trim last 4 chars)
 YESTERDAY="$(date_subtract %Y%m%d d 1)"
 PREVIOUSMONTH="$(date_subtract %Y%m m 1)"
 
