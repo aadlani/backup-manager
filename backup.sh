@@ -15,7 +15,7 @@
 set -eu
 
 # --------------------------------------------------------------------------- #
-# Helpers
+# Helpers  (also used by the test suite — see __SOURCED__)
 # --------------------------------------------------------------------------- #
 
 die() { printf "error: %s\n" "$1" >&2; exit 1; }
@@ -32,17 +32,16 @@ log() { printf "[%s] %s\n" "$(date +%Y%m%d%H%M%S)" "$@" >> "$LOGFILE"; }
 #   date_subtract "%Y%m"  m 1    → last month in YYYYMM
 date_subtract() {
     _fmt="$1" _unit="$2" _n="$3"
-    # Try GNU date first (Linux, Homebrew coreutils on macOS)
+    # Detect GNU vs BSD date: GNU accepts -d, BSD does not.
     if date -d "now" +%s >/dev/null 2>&1; then
-        date -d "$_n $_unit ago" +"$_fmt" 2>/dev/null && return
-        # GNU date uses words: "1 day ago", "1 month ago"
+        # GNU date — uses "N day ago" / "N month ago" syntax.
         case "$_unit" in
             d) date -d "$_n day ago"   +"$_fmt" ;;
             m) date -d "$_n month ago" +"$_fmt" ;;
             *) die "date_subtract: unknown unit '$_unit'" ;;
         esac
     else
-        # BSD date (macOS default)
+        # BSD date (macOS) — uses -v flag with relative offsets.
         case "$_unit" in
             d) date -v "-${_n}d" +"$_fmt" ;;
             m) date -v "-${_n}m" +"$_fmt" ;;
@@ -65,6 +64,12 @@ find_ere() {
         find -E "$_dir" "$@"
     fi
 }
+
+# --------------------------------------------------------------------------- #
+# Stop here when sourced for testing: `__SOURCED__=1 . ./backup.sh`
+# --------------------------------------------------------------------------- #
+
+if [ "${__SOURCED__:-0}" = "1" ]; then return 0 2>/dev/null || exit 0; fi
 
 # --------------------------------------------------------------------------- #
 # Configuration
@@ -154,6 +159,7 @@ while read -r snap; do
     if [ "$group" -le "$YESTERDAY" ] 2>/dev/null; then
         # Collect all snapshots for that day.
         archive="$DAILY_ARCHIVES_DIR/$group.tar.gz"
+        # shellcheck disable=SC2046
         tar -czf "$archive" -C "$SNAPSHOT_DIR" \
             $(cd "$SNAPSHOT_DIR" && ls -d1 "${group}"* 2>/dev/null) \
         && rm -rf "$SNAPSHOT_DIR/${group}"* \
@@ -192,13 +198,14 @@ fi
 find_ere "$DAILY_ARCHIVES_DIR" -type f -mindepth 1 -maxdepth 1 \
     -regex ".*/[0-9]{8}\\.${ARCHIVE_EXT}\$" -exec basename {} \; | sort | \
 while read -r f; do
-    month="${f%????????}"           # first 6 chars won't work — use substring
     month="$(echo "$f" | cut -c1-6)"
 
     if echo "$f" | grep -q "^${PREVIOUSMONTH}"; then
         # Previous month → weekly bucket.
         day="$(echo "$f" | cut -c7-8)"
-        week=$(( (10#$day - 1) / 7 ))
+        # Strip leading zero to avoid octal interpretation in POSIX sh.
+        day="${day#0}"
+        week=$(( (day - 1) / 7 ))
         dest="$WEEKLY_ARCHIVES_DIR/${PREVIOUSMONTH}.WK_${week}.${ARCHIVE_EXT}"
         mv "$DAILY_ARCHIVES_DIR/$f" "$dest" \
             && log "Rotated $f → weekly ($dest)"

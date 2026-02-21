@@ -1,5 +1,7 @@
 # Backup Manager
 
+[![CI](https://github.com/aadlani/backup-manager/actions/workflows/ci.yml/badge.svg)](https://github.com/aadlani/backup-manager/actions/workflows/ci.yml)
+
 A portable, incremental backup system built entirely from standard Unix
 tools.  Originally written for macOS in 2011, now runs on any POSIX system
 (Linux, macOS, FreeBSD, ...).
@@ -400,6 +402,26 @@ Example — run every 30 minutes during work hours on weekdays:
 
 **Tip:** use `crontab -l` to list your current entries without opening an
 editor.
+
+---
+
+## Running tests
+
+```sh
+sh tests/test_backup.sh
+```
+
+The test suite is written in pure POSIX shell (no framework needed).  It
+covers:
+
+- **Helper functions** — `date_subtract` and `find_ere` portability
+  wrappers
+- **Configuration** — defaults and config-file sourcing
+- **End-to-end pipeline** — snapshot creation, archiving, hard-link
+  deduplication, and log output (requires `rsync`)
+
+CI runs the full suite on both **Ubuntu (GNU)** and **macOS (BSD)** via
+GitHub Actions, plus **ShellCheck** static analysis.
 
 ---
 
