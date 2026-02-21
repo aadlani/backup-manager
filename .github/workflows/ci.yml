@@ -1,0 +1,50 @@
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+    branches: [master]
+
+jobs:
+  shellcheck:
+    name: ShellCheck
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install ShellCheck
+        run: sudo apt-get update && sudo apt-get install -y shellcheck
+
+      - name: Lint backup.sh
+        run: shellcheck backup.sh
+
+      - name: Lint test suite
+        run: shellcheck tests/test_backup.sh
+
+  test:
+    name: Test (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Verify dependencies
+        run: |
+          echo "--- System info ---"
+          uname -a
+          echo ""
+          echo "--- Shell ---"
+          sh --version 2>&1 || echo "(no --version for sh)"
+          echo ""
+          echo "--- Tools ---"
+          for cmd in rsync tar find date gpg; do
+            printf "%-8s %s\n" "$cmd" "$(command -v $cmd || echo 'NOT FOUND')"
+          done
+
+      - name: Run tests
+        run: sh tests/test_backup.sh
