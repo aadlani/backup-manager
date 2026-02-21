@@ -1,0 +1,22 @@
+# backup.conf — Configuration for backup.sh
+#
+# Copy this file to one of these locations:
+#   1. Next to backup.sh  (same directory)  → backup.conf
+#   2. Your home directory                  → ~/.backup.conf
+#
+# The script checks location 1 first, then 2.
+
+# Directory to back up.
+BACKUP_SOURCE_DIR="$HOME/Documents"
+
+# Where backups are stored (snapshots, archives, logs).
+BACKUP_HOME="$HOME/backups"
+
+# GPG recipient for encrypting archives.
+# Use an email address or key ID.  Leave empty to skip encryption.
+GPG_RECIPIENT=""
+
+# Extra flags passed to rsync (optional).
+# Example: exclude patterns, bandwidth limits, remote shells.
+#   RSYNC_EXTRA_OPTS="--exclude='.cache' --exclude='node_modules'"
+RSYNC_EXTRA_OPTS=""
