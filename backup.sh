@@ -69,6 +69,7 @@ find_ere() {
 # Stop here when sourced for testing: `__SOURCED__=1 . ./backup.sh`
 # --------------------------------------------------------------------------- #
 
+# shellcheck disable=SC2317  # Reachable when this file is sourced (. ./backup.sh).
 if [ "${__SOURCED__:-0}" = "1" ]; then return 0 2>/dev/null || exit 0; fi
 
 # --------------------------------------------------------------------------- #
@@ -78,6 +79,7 @@ if [ "${__SOURCED__:-0}" = "1" ]; then return 0 2>/dev/null || exit 0; fi
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Load config: look next to the script, then in $HOME.
+# shellcheck disable=SC1091  # Config files are user-provided; not available at lint time.
 if [ -f "$SCRIPT_DIR/backup.conf" ]; then
     . "$SCRIPT_DIR/backup.conf"
 elif [ -f "$HOME/.backup.conf" ]; then
@@ -108,7 +110,6 @@ fi
 
 NOW="$(date +%Y%m%d%H%M)"           # YYYYMMDDHHMM
 TODAY="${NOW%????}"                   # YYYYMMDD  (trim last 4 chars)
-THISMONTH="${TODAY%??}"              # YYYYMM
 YESTERDAY="$(date_subtract %Y%m%d d 1)"
 PREVIOUSMONTH="$(date_subtract %Y%m m 1)"
 
@@ -139,7 +140,7 @@ log "Backup started"
 # shellcheck disable=SC2086
 rsync -aH --link-dest="$CURRENT_LINK" $RSYNC_EXTRA_OPTS \
     "$BACKUP_SOURCE_DIR" "$SNAPSHOT_DIR/$NOW"
-LATEST="$(ls -1d "$SNAPSHOT_DIR"/* 2>/dev/null | tail -n1)"
+LATEST="$(find "$SNAPSHOT_DIR" -mindepth 1 -maxdepth 1 -type d 2>/dev/null | sort | tail -n1)"
 if [ -n "$LATEST" ]; then
     ln -snf "$LATEST" "$CURRENT_LINK"
     log "Snapshot $SNAPSHOT_DIR/$NOW created (linked to $CURRENT_LINK)"
@@ -162,7 +163,7 @@ while read -r snap; do
         # shellcheck disable=SC2046
         tar -czf "$archive" -C "$SNAPSHOT_DIR" \
             $(cd "$SNAPSHOT_DIR" && ls -d1 "${group}"* 2>/dev/null) \
-        && rm -rf "$SNAPSHOT_DIR/${group}"* \
+        && rm -rf "${SNAPSHOT_DIR:?}/${group:?}"* \
         && log "Archived snapshots for $group → $archive"
     fi
 done
