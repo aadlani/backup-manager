@@ -49,6 +49,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # before the main pipeline.  Do NOT export it: the e2e tests run backup.sh
 # as a subprocess and need the full pipeline to execute.
 __SOURCED__=1
+# shellcheck source=../backup.sh
 . "$PROJECT_DIR/backup.sh"
 unset __SOURCED__
 
@@ -105,19 +106,20 @@ echo ""
 echo "--- Configuration ---"
 
 run_test "default BACKUP_SOURCE_DIR uses \$HOME/Documents"
-(
+if (
     unset BACKUP_SOURCE_DIR 2>/dev/null || true
     val="${BACKUP_SOURCE_DIR:-$HOME/Documents}"
-    if [ "$val" = "$HOME/Documents" ]; then exit 0; else exit 1; fi
-) && pass || fail "unexpected default"
+    [ "$val" = "$HOME/Documents" ]
+); then pass; else fail "unexpected default"; fi
 
 run_test "config file is sourced when present"
 conf="$WORK_DIR/test.conf"
 printf 'TEST_CONF_VAR="hello_from_conf"\n' > "$conf"
-(
+# shellcheck disable=SC1090
+if (
     . "$conf"
     [ "$TEST_CONF_VAR" = "hello_from_conf" ]
-) && pass || fail "config var not loaded"
+); then pass; else fail "config var not loaded"; fi
 
 # --------------------------------------------------------------------------- #
 # End-to-end: full backup pipeline
@@ -169,7 +171,7 @@ run_test "current symlink exists and points to a snapshot"
 if [ -L "$E2E_BACKUP/current" ]; then pass; else fail "current is not a symlink"; fi
 
 run_test "snapshot contains the source files"
-latest="$(ls -1d "$E2E_BACKUP/snapshots"/* | tail -n1)"
+latest="$(find "$E2E_BACKUP/snapshots" -mindepth 1 -maxdepth 1 -type d | sort | tail -n1)"
 # rsync copies the source directory *into* the snapshot, so look one level deeper.
 base="$(basename "$E2E_SOURCE")"
 if [ -f "$latest/$base/file1.txt" ] && [ -f "$latest/$base/subdir/file2.txt" ]; then
@@ -232,20 +234,20 @@ run_test "second snapshot hard-links unchanged files"
 # the next run creates a genuinely new directory (minute-resolution timestamps
 # would otherwise collide if both runs happen within the same minute).
 (HOME="$E2E_HOME" sh "$PROJECT_DIR/backup.sh") >/dev/null 2>&1
-first_snap="$(ls -1d "$E2E_BACKUP/snapshots"/* | tail -n1)"
+first_snap="$(find "$E2E_BACKUP/snapshots" -mindepth 1 -maxdepth 1 -type d | sort | tail -n1)"
 today="$(date +%Y%m%d)"
 mv "$first_snap" "$E2E_BACKUP/snapshots/${today}0001"
 ln -snf "$E2E_BACKUP/snapshots/${today}0001" "$E2E_BACKUP/current"
 (HOME="$E2E_HOME" sh "$PROJECT_DIR/backup.sh") >/dev/null 2>&1
 
-snaps="$(ls -1d "$E2E_BACKUP/snapshots"/* | tail -n2)"
+snaps="$(find "$E2E_BACKUP/snapshots" -mindepth 1 -maxdepth 1 -type d | sort | tail -n2)"
 snap_a="$(echo "$snaps" | head -n1)"
 snap_b="$(echo "$snaps" | tail -n1)"
 base="$(basename "$E2E_SOURCE")"
 
 if [ -n "$snap_a" ] && [ -n "$snap_b" ] && [ "$snap_a" != "$snap_b" ]; then
-    inode_a="$(ls -i "$snap_a/$base/file1.txt" 2>/dev/null | awk '{print $1}')"
-    inode_b="$(ls -i "$snap_b/$base/file1.txt" 2>/dev/null | awk '{print $1}')"
+    inode_a="$(stat -c '%i' "$snap_a/$base/file1.txt" 2>/dev/null)" || true
+    inode_b="$(stat -c '%i' "$snap_b/$base/file1.txt" 2>/dev/null)" || true
     if [ -n "$inode_a" ] && [ "$inode_a" = "$inode_b" ]; then
         pass
     else
