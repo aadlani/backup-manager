@@ -49,7 +49,7 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 # before the main pipeline.  Do NOT export it: the e2e tests run backup.sh
 # as a subprocess and need the full pipeline to execute.
 __SOURCED__=1
-# shellcheck source=../backup.sh
+# shellcheck disable=SC1091
 . "$PROJECT_DIR/backup.sh"
 unset __SOURCED__
 
@@ -246,8 +246,14 @@ snap_b="$(echo "$snaps" | tail -n1)"
 base="$(basename "$E2E_SOURCE")"
 
 if [ -n "$snap_a" ] && [ -n "$snap_b" ] && [ "$snap_a" != "$snap_b" ]; then
-    inode_a="$(stat -c '%i' "$snap_a/$base/file1.txt" 2>/dev/null)" || true
-    inode_b="$(stat -c '%i' "$snap_b/$base/file1.txt" 2>/dev/null)" || true
+    # stat -c is GNU, stat -f is BSD/macOS
+    if stat -c '%i' / >/dev/null 2>&1; then
+        inode_a="$(stat -c '%i' "$snap_a/$base/file1.txt" 2>/dev/null)" || true
+        inode_b="$(stat -c '%i' "$snap_b/$base/file1.txt" 2>/dev/null)" || true
+    else
+        inode_a="$(stat -f '%i' "$snap_a/$base/file1.txt" 2>/dev/null)" || true
+        inode_b="$(stat -f '%i' "$snap_b/$base/file1.txt" 2>/dev/null)" || true
+    fi
     if [ -n "$inode_a" ] && [ "$inode_a" = "$inode_b" ]; then
         pass
     else
