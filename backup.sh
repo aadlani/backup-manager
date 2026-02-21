@@ -108,8 +108,8 @@ fi
 # Dates — computed once so every step sees the same values
 # --------------------------------------------------------------------------- #
 
-NOW="$(date +%Y%m%d%H%M%S)"         # YYYYMMDDHHMMSS
-TODAY="${NOW%??????}"                 # YYYYMMDD  (trim last 6 chars)
+NOW="$(date +%Y%m%d%H%M)"           # YYYYMMDDHHMM
+TODAY="${NOW%????}"                   # YYYYMMDD  (trim last 4 chars)
 YESTERDAY="$(date_subtract %Y%m%d d 1)"
 PREVIOUSMONTH="$(date_subtract %Y%m m 1)"
 
@@ -154,7 +154,7 @@ fi
 
 find "$SNAPSHOT_DIR" -mindepth 1 -maxdepth 1 -type d -exec basename {} \; | sort | \
 while read -r snap; do
-    group="${snap%??????}"   # YYYYMMDD (strip HHMMSS)
+    group="${snap%????}"   # YYYYMMDD (strip HHMM)
 
     # Only archive snapshots that are at least a day old.
     if [ "$group" -le "$YESTERDAY" ] 2>/dev/null; then

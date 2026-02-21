@@ -228,9 +228,13 @@ echo ""
 echo "--- Hard-link deduplication ---"
 
 run_test "second snapshot hard-links unchanged files"
-# Run backup twice without modifying source.
+# Run backup once, then rename the snapshot to a different minute so that
+# the next run creates a genuinely new directory (minute-resolution timestamps
+# would otherwise collide if both runs happen within the same minute).
 (HOME="$E2E_HOME" sh "$PROJECT_DIR/backup.sh") >/dev/null 2>&1
-sleep 1
+first_snap="$(ls -1d "$E2E_BACKUP/snapshots"/* | tail -n1)"
+today="$(date +%Y%m%d)"
+mv "$first_snap" "$E2E_BACKUP/snapshots/${today}0001"
 (HOME="$E2E_HOME" sh "$PROJECT_DIR/backup.sh") >/dev/null 2>&1
 
 snaps="$(ls -1d "$E2E_BACKUP/snapshots"/* | tail -n2)"

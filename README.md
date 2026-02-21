@@ -84,11 +84,11 @@ The script executes five steps in order:
 ```
 $BACKUP_HOME/
 ├── backups.log
-├── current -> snapshots/20260221143022  # symlink to the latest snapshot
+├── current -> snapshots/202602211430    # symlink to the latest snapshot
 ├── snapshots/
-│   ├── 20260221140000/
-│   ├── 20260221143022/
-│   └── 20260221150045/
+│   ├── 202602211400/
+│   ├── 202602211430/
+│   └── 202602211500/
 └── archives/
     ├── daily/
     │   └── 20260220.tar.gz.gpg
